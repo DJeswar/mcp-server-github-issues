@@ -45,7 +45,7 @@ another's title is literally "Feedback form lets users inject instructions". A d
 on mere mention would flag most of the repository, escalate ordinary issues, and train you to
 ignore the log.
 
-- **Live demo:** [<LIVE-DEMO-URL>](<LIVE-DEMO-URL>) *(filled after deployment)*
+- **Live demo:** [https://live-data-mcp-agent.onrender.com/](https://live-data-mcp-agent.onrender.com/) *(filled after deployment)*
 - **MCP Registry listing:** [<MCP-REGISTRY-URL>](<MCP-REGISTRY-URL>) *(filled after publishing)*
 
 ## Architecture

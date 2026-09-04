@@ -74,7 +74,7 @@ On the other PC:
     --demo-url https://<your-service>.onrender.com
 ```
 
-That replaces `<LIVE-DEMO-URL>` in the README. Add the Registry URL separately after publishing.
+That replaces `https://live-data-mcp-agent.onrender.com/` in the README. Add the Registry URL separately after publishing.
 
 ## Free-tier limits to disclose
 
