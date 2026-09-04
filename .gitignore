@@ -1,0 +1,36 @@
+# secrets -- never commit
+.env
+.env.local
+*.pem
+*.key
+
+# python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.pytest_tmp/
+.ruff_cache/
+.mypy_cache/
+
+# build artifacts
+dist/
+build/
+mcp-publisher
+mcp-publisher.exe
+*.tar.gz
+
+# data / artifacts
+*.sqlite3
+*.db
+evals/results/
+logs/
+
+# os / editor
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/

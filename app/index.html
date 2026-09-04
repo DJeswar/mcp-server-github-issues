@@ -1,0 +1,1450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#080b12">
+<title>Live-Data MCP Agent</title>
+<!-- Self-contained by design: no CDN, external font, analytics, or third-party asset request. -->
+<style>
+  :root {
+    color-scheme: dark;
+    --bg:#080b12;
+    --bg-soft:#0d111b;
+    --surface:rgba(16,21,33,.88);
+    --surface-solid:#101521;
+    --surface-raised:#151b2a;
+    --surface-hover:#1a2233;
+    --line:#252d40;
+    --line-bright:#35405a;
+    --ink:#f4f7fb;
+    --muted:#9aa6ba;
+    --faint:#69768d;
+    --cyan:#62d9ff;
+    --cyan-soft:rgba(98,217,255,.12);
+    --violet:#a78bfa;
+    --violet-soft:rgba(167,139,250,.12);
+    --green:#5ee6a8;
+    --green-soft:rgba(94,230,168,.12);
+    --amber:#ffc866;
+    --amber-soft:rgba(255,200,102,.12);
+    --red:#ff7c91;
+    --red-soft:rgba(255,124,145,.12);
+    --shadow:0 24px 70px rgba(0,0,0,.28);
+    --mono:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,"Liberation Mono",monospace;
+  }
+
+  *{box-sizing:border-box}
+  html{scroll-behavior:smooth}
+  body{
+    margin:0;
+    min-width:320px;
+    min-height:100vh;
+    overflow-x:hidden;
+    background:
+      radial-gradient(circle at 10% 0%,rgba(44,163,196,.12),transparent 32rem),
+      radial-gradient(circle at 92% 8%,rgba(124,92,218,.12),transparent 30rem),
+      var(--bg);
+    color:var(--ink);
+    font:14px/1.55 Inter,ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  }
+  button,textarea{font:inherit}
+  button{color:inherit}
+  button:focus-visible,textarea:focus-visible{
+    outline:2px solid var(--cyan);
+    outline-offset:2px;
+  }
+  a{color:inherit}
+  .hidden{display:none!important}
+  .sr-only{
+    position:absolute;
+    width:1px;
+    height:1px;
+    padding:0;
+    margin:-1px;
+    overflow:hidden;
+    clip:rect(0,0,0,0);
+    white-space:nowrap;
+    border:0;
+  }
+
+  .noise{
+    position:fixed;
+    inset:0;
+    z-index:-1;
+    pointer-events:none;
+    opacity:.025;
+    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.8'/%3E%3C/svg%3E");
+  }
+
+  .shell{
+    width:min(1580px,100%);
+    margin:0 auto;
+    padding:18px 22px 32px;
+  }
+  .topbar{
+    min-height:72px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:24px;
+    margin-bottom:16px;
+    padding:12px 16px;
+    border:1px solid rgba(53,64,90,.72);
+    border-radius:20px;
+    background:rgba(13,17,27,.72);
+    box-shadow:0 16px 50px rgba(0,0,0,.18);
+    backdrop-filter:blur(18px);
+  }
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    min-width:0;
+    text-decoration:none;
+  }
+  .brand-mark{
+    position:relative;
+    width:42px;
+    height:42px;
+    flex:0 0 auto;
+    display:grid;
+    place-items:center;
+    overflow:hidden;
+    border:1px solid rgba(98,217,255,.34);
+    border-radius:13px;
+    background:linear-gradient(145deg,rgba(98,217,255,.18),rgba(167,139,250,.14));
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.08),0 8px 24px rgba(52,160,190,.12);
+  }
+  .brand-mark svg{width:24px;height:24px}
+  .brand-copy{min-width:0}
+  .brand-title{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    margin:0;
+    font-size:15px;
+    font-weight:750;
+    letter-spacing:-.01em;
+  }
+  .version{
+    padding:2px 6px;
+    border:1px solid var(--line);
+    border-radius:999px;
+    color:var(--faint);
+    font:9px/1.4 var(--mono);
+    letter-spacing:.04em;
+  }
+  .brand-subtitle{
+    margin:2px 0 0;
+    color:var(--muted);
+    font-size:12px;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis;
+  }
+  .top-status{
+    display:flex;
+    align-items:center;
+    gap:12px;
+    flex:0 0 auto;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .connection,.read-only{
+    display:flex;
+    align-items:center;
+    gap:7px;
+  }
+  .status-dot{
+    width:8px;
+    height:8px;
+    border-radius:50%;
+    background:var(--amber);
+    box-shadow:0 0 0 4px var(--amber-soft);
+  }
+  .status-dot.ok{
+    background:var(--green);
+    box-shadow:0 0 0 4px var(--green-soft);
+  }
+  .status-dot.bad{
+    background:var(--red);
+    box-shadow:0 0 0 4px var(--red-soft);
+  }
+  .top-divider{width:1px;height:22px;background:var(--line)}
+  .read-only svg{width:13px;height:13px;color:var(--green)}
+
+  .dashboard{
+    display:grid;
+    grid-template-columns:248px minmax(480px,1fr) 354px;
+    gap:16px;
+    align-items:start;
+  }
+  .panel{
+    border:1px solid rgba(53,64,90,.78);
+    border-radius:22px;
+    background:var(--surface);
+    box-shadow:var(--shadow);
+    backdrop-filter:blur(18px);
+  }
+  .rail{
+    display:grid;
+    gap:12px;
+    position:sticky;
+    top:18px;
+  }
+  .rail-card{
+    padding:16px;
+    border:1px solid var(--line);
+    border-radius:18px;
+    background:rgba(17,23,36,.8);
+  }
+  .eyebrow{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    margin:0 0 11px;
+    color:var(--faint);
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.11em;
+    text-transform:uppercase;
+  }
+  .eyebrow svg{width:13px;height:13px;color:var(--cyan)}
+  .repo-name{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    margin:0 0 7px;
+    font-size:14px;
+    font-weight:720;
+    overflow-wrap:anywhere;
+  }
+  .github-mark{
+    width:26px;
+    height:26px;
+    flex:0 0 auto;
+    display:grid;
+    place-items:center;
+    border:1px solid var(--line);
+    border-radius:8px;
+    background:var(--surface-raised);
+    font:700 11px var(--mono);
+  }
+  .repo-copy{margin:0;color:var(--muted);font-size:12px}
+  .status-row{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-top:14px;
+    padding-top:12px;
+    border-top:1px solid var(--line);
+  }
+  .chip{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    min-height:24px;
+    padding:3px 8px;
+    border:1px solid var(--line);
+    border-radius:999px;
+    color:var(--muted);
+    background:rgba(255,255,255,.02);
+    font:10px/1.3 var(--mono);
+  }
+  .chip.cyan{color:var(--cyan);border-color:rgba(98,217,255,.28);background:var(--cyan-soft)}
+  .chip.green{color:var(--green);border-color:rgba(94,230,168,.28);background:var(--green-soft)}
+  .chip.violet{color:var(--violet);border-color:rgba(167,139,250,.28);background:var(--violet-soft)}
+  .chip.amber{color:var(--amber);border-color:rgba(255,200,102,.28);background:var(--amber-soft)}
+  .chip.red{color:var(--red);border-color:rgba(255,124,145,.28);background:var(--red-soft)}
+
+  .metric-grid{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    gap:8px;
+  }
+  .metric{
+    min-height:76px;
+    padding:11px;
+    border:1px solid var(--line);
+    border-radius:14px;
+    background:linear-gradient(145deg,rgba(255,255,255,.025),rgba(255,255,255,0));
+  }
+  .metric-value{
+    display:block;
+    margin-bottom:4px;
+    color:var(--ink);
+    font-size:18px;
+    font-weight:760;
+    letter-spacing:-.03em;
+  }
+  .metric-label{color:var(--faint);font-size:10px;line-height:1.3}
+  .metric-value.safe{color:var(--green)}
+
+  .examples{
+    display:grid;
+    gap:7px;
+  }
+  .example-button{
+    width:100%;
+    display:flex;
+    align-items:flex-start;
+    gap:9px;
+    padding:9px 10px;
+    border:1px solid transparent;
+    border-radius:12px;
+    background:transparent;
+    color:var(--muted);
+    text-align:left;
+    font-size:11.5px;
+    line-height:1.35;
+    cursor:pointer;
+    transition:.18s ease;
+  }
+  .example-button:hover{
+    border-color:var(--line-bright);
+    background:var(--surface-hover);
+    color:var(--ink);
+    transform:translateX(2px);
+  }
+  .example-icon{
+    width:19px;
+    height:19px;
+    flex:0 0 auto;
+    display:grid;
+    place-items:center;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--cyan);
+    font:700 10px var(--mono);
+  }
+
+  .trust-row{
+    display:flex;
+    align-items:flex-start;
+    gap:10px;
+  }
+  .trust-icon{
+    width:30px;
+    height:30px;
+    flex:0 0 auto;
+    display:grid;
+    place-items:center;
+    border-radius:10px;
+    color:var(--green);
+    background:var(--green-soft);
+  }
+  .trust-icon svg{width:16px;height:16px}
+  .trust-title{margin:0 0 3px;font-size:12px;font-weight:700}
+  .trust-copy{margin:0;color:var(--muted);font-size:10.5px;line-height:1.45}
+
+  .chat-panel{
+    height:calc(100vh - 126px);
+    min-height:600px;
+    max-height:900px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden;
+  }
+  .panel-head{
+    min-height:66px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:16px;
+    padding:14px 18px;
+    border-bottom:1px solid var(--line);
+  }
+  .panel-title{margin:0;font-size:13px;font-weight:730}
+  .panel-subtitle{margin:2px 0 0;color:var(--faint);font-size:11px}
+  .run-indicator{
+    display:flex;
+    align-items:center;
+    gap:7px;
+    color:var(--faint);
+    font:10px var(--mono);
+  }
+  .run-indicator strong{color:var(--ink);font-weight:650}
+
+  .conversation{
+    flex:1;
+    min-height:0;
+    padding:24px;
+    overflow-y:auto;
+    scrollbar-color:var(--line-bright) transparent;
+  }
+  .welcome{
+    min-height:100%;
+    display:flex;
+    flex-direction:column;
+    justify-content:center;
+    align-items:flex-start;
+    max-width:650px;
+    margin:0 auto;
+    padding:28px 12px 46px;
+  }
+  .hero-kicker{
+    display:inline-flex;
+    align-items:center;
+    gap:7px;
+    margin-bottom:18px;
+    padding:5px 9px;
+    border:1px solid rgba(98,217,255,.28);
+    border-radius:999px;
+    background:var(--cyan-soft);
+    color:var(--cyan);
+    font:10px var(--mono);
+  }
+  .hero-kicker span{
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:var(--cyan);
+    box-shadow:0 0 12px var(--cyan);
+  }
+  .welcome h1{
+    max-width:600px;
+    margin:0;
+    font-size:clamp(31px,4vw,50px);
+    line-height:1.04;
+    letter-spacing:-.045em;
+    font-weight:780;
+  }
+  .gradient-text{
+    color:transparent;
+    background:linear-gradient(100deg,var(--cyan),#9ce8ff 42%,var(--violet));
+    background-clip:text;
+    -webkit-background-clip:text;
+  }
+  .welcome-copy{
+    max-width:590px;
+    margin:18px 0 22px;
+    color:var(--muted);
+    font-size:14px;
+    line-height:1.7;
+  }
+  .capabilities{display:flex;flex-wrap:wrap;gap:7px}
+  .capability{
+    display:flex;
+    align-items:center;
+    gap:6px;
+    padding:6px 9px;
+    border:1px solid var(--line);
+    border-radius:9px;
+    color:var(--muted);
+    background:rgba(255,255,255,.018);
+    font-size:10.5px;
+  }
+  .capability span{color:var(--green)}
+
+  .turn{
+    display:grid;
+    grid-template-columns:34px minmax(0,1fr);
+    gap:11px;
+    max-width:700px;
+    margin:0 auto 22px;
+    animation:turn-in .25s ease both;
+  }
+  .turn-avatar{
+    width:32px;
+    height:32px;
+    display:grid;
+    place-items:center;
+    border:1px solid var(--line);
+    border-radius:10px;
+    background:var(--surface-raised);
+    color:var(--muted);
+    font:700 10px var(--mono);
+  }
+  .turn.assistant .turn-avatar{
+    color:var(--cyan);
+    border-color:rgba(98,217,255,.26);
+    background:var(--cyan-soft);
+  }
+  .turn.error-turn .turn-avatar{
+    color:var(--red);
+    border-color:rgba(255,124,145,.28);
+    background:var(--red-soft);
+  }
+  .turn-label{
+    margin:1px 0 6px;
+    color:var(--faint);
+    font-size:10px;
+    font-weight:700;
+    letter-spacing:.08em;
+    text-transform:uppercase;
+  }
+  .turn-copy{
+    margin:0;
+    color:var(--ink);
+    white-space:pre-wrap;
+    overflow-wrap:anywhere;
+    font-size:13.5px;
+    line-height:1.68;
+  }
+  .turn.user .turn-copy{
+    display:inline-block;
+    padding:11px 14px;
+    border:1px solid var(--line);
+    border-radius:4px 14px 14px 14px;
+    background:var(--surface-raised);
+  }
+  .turn.assistant .turn-body{
+    padding:15px 17px;
+    border:1px solid rgba(98,217,255,.15);
+    border-radius:4px 16px 16px 16px;
+    background:linear-gradient(145deg,rgba(98,217,255,.055),rgba(167,139,250,.025));
+  }
+  .turn.error-turn .turn-body{
+    padding:13px 15px;
+    border:1px solid rgba(255,124,145,.25);
+    border-radius:4px 14px 14px 14px;
+    background:var(--red-soft);
+  }
+  .citation-row{
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+    margin-top:13px;
+    padding-top:11px;
+    border-top:1px solid var(--line);
+  }
+  .citation{
+    display:inline-flex;
+    align-items:center;
+    gap:5px;
+    padding:4px 7px;
+    border:1px solid var(--line);
+    border-radius:7px;
+    color:var(--muted);
+    background:rgba(0,0,0,.12);
+    font-size:10px;
+  }
+  .citation b{color:var(--cyan);font-family:var(--mono)}
+
+  .thinking{
+    display:flex;
+    align-items:center;
+    gap:8px;
+    color:var(--muted);
+    font-size:12px;
+  }
+  .thinking-dots{display:flex;gap:4px}
+  .thinking-dots i{
+    width:5px;
+    height:5px;
+    border-radius:50%;
+    background:var(--cyan);
+    animation:pulse 1s ease-in-out infinite;
+  }
+  .thinking-dots i:nth-child(2){animation-delay:.15s}
+  .thinking-dots i:nth-child(3){animation-delay:.3s}
+
+  .activity{
+    display:flex;
+    align-items:center;
+    gap:9px;
+    margin:0 18px 10px;
+    padding:9px 11px;
+    border:1px solid rgba(98,217,255,.2);
+    border-radius:12px;
+    background:var(--cyan-soft);
+    color:var(--cyan);
+    font-size:10.5px;
+  }
+  .activity-pulse{
+    width:7px;
+    height:7px;
+    border-radius:50%;
+    background:var(--cyan);
+    animation:glow 1.2s ease-in-out infinite;
+  }
+  .error-banner{
+    margin:0 18px 10px;
+    padding:10px 12px;
+    border:1px solid rgba(255,124,145,.3);
+    border-radius:12px;
+    background:var(--red-soft);
+    color:#ffc2cc;
+    font-size:11.5px;
+  }
+
+  .composer-wrap{
+    padding:14px 16px 16px;
+    border-top:1px solid var(--line);
+    background:rgba(10,14,23,.65);
+  }
+  .composer{
+    border:1px solid var(--line-bright);
+    border-radius:16px;
+    background:var(--surface-solid);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.025),0 12px 32px rgba(0,0,0,.18);
+    transition:.2s ease;
+  }
+  .composer:focus-within{
+    border-color:rgba(98,217,255,.6);
+    box-shadow:0 0 0 3px rgba(98,217,255,.07),0 12px 32px rgba(0,0,0,.2);
+  }
+  textarea{
+    width:100%;
+    min-height:76px;
+    max-height:180px;
+    display:block;
+    resize:vertical;
+    padding:14px 15px 8px;
+    border:0;
+    outline:0!important;
+    background:transparent;
+    color:var(--ink);
+    line-height:1.5;
+  }
+  textarea::placeholder{color:#667289}
+  .composer-foot{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:7px 8px 8px 14px;
+  }
+  .composer-meta{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    color:var(--faint);
+    font-size:9.5px;
+  }
+  .char-count{font-family:var(--mono)}
+  .ask-button{
+    min-height:34px;
+    display:inline-flex;
+    align-items:center;
+    justify-content:center;
+    gap:7px;
+    padding:7px 12px;
+    border:0;
+    border-radius:10px;
+    background:linear-gradient(135deg,var(--cyan),#8ce5ff);
+    color:#05232d;
+    font-size:11px;
+    font-weight:780;
+    cursor:pointer;
+    box-shadow:0 8px 22px rgba(55,185,224,.18);
+    transition:.18s ease;
+  }
+  .ask-button:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 11px 26px rgba(55,185,224,.24)}
+  .ask-button:disabled{opacity:.58;cursor:progress}
+  .ask-button svg{width:14px;height:14px}
+
+  .inspector{
+    height:calc(100vh - 126px);
+    min-height:600px;
+    max-height:900px;
+    overflow:hidden;
+    position:sticky;
+    top:18px;
+  }
+  .inspector-head{
+    min-height:66px;
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:14px 16px;
+    border-bottom:1px solid var(--line);
+  }
+  .inspector-empty{
+    min-height:620px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:center;
+    padding:30px;
+    text-align:center;
+  }
+  .empty-orbit{
+    width:74px;
+    height:74px;
+    display:grid;
+    place-items:center;
+    margin-bottom:18px;
+    border:1px solid var(--line);
+    border-radius:50%;
+    background:
+      radial-gradient(circle,rgba(98,217,255,.13) 0 14%,transparent 15%),
+      var(--surface-raised);
+    box-shadow:inset 0 0 0 12px rgba(98,217,255,.025);
+  }
+  .empty-orbit svg{width:27px;height:27px;color:var(--cyan)}
+  .inspector-empty h3{margin:0 0 7px;font-size:13px}
+  .inspector-empty p{max-width:245px;margin:0;color:var(--muted);font-size:11px}
+
+  .tablist{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:4px;
+    padding:9px;
+    border-bottom:1px solid var(--line);
+  }
+  .tab{
+    min-width:0;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    gap:4px;
+    padding:7px 4px;
+    border:1px solid transparent;
+    border-radius:9px;
+    background:transparent;
+    color:var(--faint);
+    font-size:9.5px;
+    cursor:pointer;
+    transition:.15s ease;
+  }
+  .tab:hover{color:var(--ink);background:var(--surface-hover)}
+  .tab.active{
+    color:var(--cyan);
+    border-color:rgba(98,217,255,.18);
+    background:var(--cyan-soft);
+  }
+  .tab-count{
+    min-width:16px;
+    padding:1px 4px;
+    border-radius:999px;
+    background:rgba(255,255,255,.07);
+    font:9px var(--mono);
+  }
+  .tab-panel{
+    display:none;
+    min-height:495px;
+    max-height:565px;
+    padding:15px;
+    overflow-y:auto;
+    scrollbar-color:var(--line-bright) transparent;
+  }
+  .tab-panel.active{display:block}
+  .trace-list{
+    list-style:none;
+    margin:0;
+    padding:0;
+  }
+  .trace-list>li{
+    position:relative;
+    margin:0 0 9px;
+    padding:11px;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:rgba(255,255,255,.018);
+  }
+  .trace-list>li:last-child{margin-bottom:0}
+  .timeline{counter-reset:step}
+  .timeline>li{padding-left:41px}
+  .timeline>li::before{
+    counter-increment:step;
+    content:counter(step);
+    position:absolute;
+    left:11px;
+    top:11px;
+    width:20px;
+    height:20px;
+    display:grid;
+    place-items:center;
+    border:1px solid rgba(98,217,255,.25);
+    border-radius:7px;
+    color:var(--cyan);
+    background:var(--cyan-soft);
+    font:9px var(--mono);
+  }
+  .mono{
+    font-family:var(--mono);
+    font-size:10.5px;
+    overflow-wrap:anywhere;
+  }
+  .why{
+    margin-top:5px;
+    color:var(--muted);
+    font-size:10.5px;
+    line-height:1.5;
+  }
+  .tag{
+    display:inline-flex;
+    align-items:center;
+    min-height:19px;
+    margin:0 5px 5px 0;
+    padding:2px 6px;
+    border:1px solid var(--line);
+    border-radius:6px;
+    color:var(--muted);
+    background:rgba(255,255,255,.02);
+    font:9px/1.25 var(--mono);
+  }
+  .t-ok{color:var(--green);border-color:rgba(94,230,168,.28);background:var(--green-soft)}
+  .t-bad{color:var(--red);border-color:rgba(255,124,145,.28);background:var(--red-soft)}
+  .t-warn{color:var(--amber);border-color:rgba(255,200,102,.28);background:var(--amber-soft)}
+  .hint{
+    margin-top:12px;
+    padding:10px;
+    border-left:2px solid var(--line-bright);
+    color:var(--faint);
+    font-size:9.5px;
+    line-height:1.5;
+  }
+  .empty-trace{
+    padding:30px 14px;
+    color:var(--faint);
+    text-align:center;
+    font-size:10.5px;
+  }
+  .budget-card{
+    margin:0 12px 12px;
+    padding:11px 12px;
+    border:1px solid var(--line);
+    border-radius:13px;
+    background:var(--surface-raised);
+  }
+  .budget-top{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:8px;
+    margin-bottom:7px;
+  }
+  .budget-title{color:var(--faint);font-size:9px;font-weight:700;letter-spacing:.09em;text-transform:uppercase}
+  .budget{
+    color:var(--muted);
+    white-space:pre-wrap;
+    font:9.5px/1.45 var(--mono);
+  }
+  .budget-bar{
+    height:3px;
+    margin-top:9px;
+    overflow:hidden;
+    border-radius:999px;
+    background:var(--line);
+  }
+  .budget-fill{
+    width:0;
+    height:100%;
+    border-radius:inherit;
+    background:linear-gradient(90deg,var(--green),var(--cyan));
+    transition:width .35s ease;
+  }
+
+  .page-foot{
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:18px;
+    padding:14px 4px 0;
+    color:var(--faint);
+    font-size:10px;
+  }
+  .foot-stack{display:flex;align-items:center;gap:7px}
+  .foot-dot{width:3px;height:3px;border-radius:50%;background:var(--line-bright)}
+
+  @keyframes pulse{
+    0%,100%{opacity:.35;transform:translateY(0)}
+    50%{opacity:1;transform:translateY(-2px)}
+  }
+  @keyframes glow{
+    0%,100%{box-shadow:0 0 0 0 rgba(98,217,255,.36)}
+    50%{box-shadow:0 0 0 5px rgba(98,217,255,0)}
+  }
+  @keyframes turn-in{
+    from{opacity:0;transform:translateY(8px)}
+    to{opacity:1;transform:translateY(0)}
+  }
+
+  @media (max-width:1220px){
+    .dashboard{grid-template-columns:240px minmax(0,1fr)}
+    .inspector{grid-column:1/-1;position:static;height:auto;min-height:0;max-height:none}
+    .inspector-empty{min-height:260px}
+    .tab-panel{min-height:300px;max-height:500px}
+  }
+  @media (max-width:820px){
+    .shell{padding:12px}
+    .topbar{border-radius:16px;padding:11px 12px}
+    .brand-subtitle,.read-only,.top-divider{display:none}
+    .dashboard{grid-template-columns:1fr}
+    .chat-panel{order:1;height:auto;min-height:690px;max-height:none}
+    .context-rail{order:2;position:static;grid-template-columns:1fr 1fr}
+    .context-rail .rail-card:last-child{grid-column:1/-1}
+    .inspector{order:3;grid-column:auto}
+    .conversation{padding:20px 16px}
+    .welcome{min-height:390px;padding-left:4px;padding-right:4px}
+    .welcome h1{font-size:36px}
+  }
+  @media (max-width:560px){
+    .top-status{font-size:10px}
+    .version{display:none}
+    .dashboard{gap:12px}
+    .panel{border-radius:17px}
+    .context-rail{grid-template-columns:1fr}
+    .context-rail .rail-card:last-child{grid-column:auto}
+    .chat-panel{min-height:640px}
+    .panel-head{padding:12px 14px}
+    .conversation{min-height:430px;padding:18px 13px}
+    .welcome{min-height:360px}
+    .welcome h1{font-size:31px}
+    .welcome-copy{font-size:13px}
+    .turn{grid-template-columns:29px minmax(0,1fr);gap:8px}
+    .turn-avatar{width:28px;height:28px;border-radius:8px}
+    .composer-meta span:first-child{display:none}
+    .composer-foot{padding-left:10px}
+    .tab{font-size:0}
+    .tab-count{font-size:9px}
+    .page-foot{align-items:flex-start;flex-direction:column;gap:5px}
+  }
+  @media (prefers-reduced-motion:reduce){
+    *,*::before,*::after{scroll-behavior:auto!important;animation-duration:.01ms!important;transition-duration:.01ms!important}
+  }
+</style>
+</head>
+<body>
+<div class="noise" aria-hidden="true"></div>
+
+<div class="shell">
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Live-Data MCP Agent home">
+      <span class="brand-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M7 7.5h10M7 12h7M7 16.5h4" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+          <path d="M4.5 3.75h15a1.75 1.75 0 0 1 1.75 1.75v13a1.75 1.75 0 0 1-1.75 1.75h-15a1.75 1.75 0 0 1-1.75-1.75v-13A1.75 1.75 0 0 1 4.5 3.75Z" stroke="currentColor" stroke-width="1.3"/>
+          <circle cx="17.2" cy="16.4" r="1.8" fill="#5ee6a8"/>
+        </svg>
+      </span>
+      <span class="brand-copy">
+        <span class="brand-title">Live-Data MCP Agent <span class="version" id="version">v0.1.0</span></span>
+        <span class="brand-subtitle">GitHub issue intelligence with inspectable agent execution</span>
+      </span>
+    </a>
+
+    <div class="top-status" aria-live="polite">
+      <span class="connection">
+        <span class="status-dot" id="health-dot"></span>
+        <span id="health-state">Connecting</span>
+      </span>
+      <span class="top-divider" aria-hidden="true"></span>
+      <span class="read-only">
+        <svg viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <path d="M7 10V7a5 5 0 0 1 10 0v3M6 10h12a2 2 0 0 1 2 2v7H4v-7a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>
+        </svg>
+        Read-only by design
+      </span>
+    </div>
+  </header>
+
+  <div class="dashboard">
+    <aside class="rail context-rail" aria-label="Repository and project context">
+      <section class="rail-card">
+        <p class="eyebrow">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 19V5a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v14M8 7h8M8 11h5M3 19h18" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          Repository
+        </p>
+        <div class="repo-name">
+          <span class="github-mark" aria-hidden="true">GH</span>
+          <span id="repo-name">Waiting for first run</span>
+        </div>
+        <p class="repo-copy" id="repo-copy">The active source appears here after the agent calls a tool.</p>
+        <div class="status-row">
+          <span class="chip cyan" id="issues-chip">issues · connecting</span>
+          <span class="chip violet" id="llm-chip">llm · connecting</span>
+        </div>
+      </section>
+
+      <section class="rail-card">
+        <p class="eyebrow">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M4 18V9m5 9V5m6 13v-7m5 7V3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+          Verified profile
+        </p>
+        <div class="metric-grid">
+          <div class="metric"><span class="metric-value">5</span><span class="metric-label">Typed MCP tools</span></div>
+          <div class="metric"><span class="metric-value">435</span><span class="metric-label">Automated tests</span></div>
+          <div class="metric"><span class="metric-value safe">25/25</span><span class="metric-label">Agent evals</span></div>
+          <div class="metric"><span class="metric-value">2-tier</span><span class="metric-label">Memory design</span></div>
+        </div>
+      </section>
+
+      <section class="rail-card">
+        <p class="eyebrow">
+          <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          Try a workflow
+        </p>
+        <div class="examples" id="examples" aria-label="Example questions"></div>
+      </section>
+
+      <section class="rail-card">
+        <div class="trust-row">
+          <span class="trust-icon" aria-hidden="true">
+            <svg viewBox="0 0 24 24" fill="none"><path d="M12 3 4.8 6v5.1c0 4.6 3 8.2 7.2 9.9 4.2-1.7 7.2-5.3 7.2-9.9V6L12 3Z" stroke="currentColor" stroke-width="1.7"/><path d="m8.7 12 2.1 2.1 4.6-4.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </span>
+          <span>
+            <p class="trust-title">Untrusted data stays untrusted</p>
+            <p class="trust-copy">Issue text is inspected for prompt injection before it can influence the answer or memory.</p>
+          </span>
+        </div>
+      </section>
+    </aside>
+
+    <main class="panel chat-panel">
+      <header class="panel-head">
+        <div>
+          <h2 class="panel-title">Agent workspace</h2>
+          <p class="panel-subtitle">Ask, investigate, and keep the evidence attached.</p>
+        </div>
+        <div class="run-indicator"><span>session</span><strong id="run-count">ready</strong></div>
+      </header>
+
+      <div class="conversation" id="conversation" aria-live="polite">
+        <section class="welcome" id="welcome">
+          <span class="hero-kicker"><span></span> Custom MCP · LangGraph · guarded</span>
+          <h1>Turn issue data into <span class="gradient-text">decisions you can inspect.</span></h1>
+          <p class="welcome-copy">
+            Investigate live GitHub issues through a read-only MCP server. Every answer keeps its
+            plan, tool calls, citations, safety decisions, and memory policy visible.
+          </p>
+          <div class="capabilities" aria-label="Agent capabilities">
+            <span class="capability"><span>✓</span> Release triage</span>
+            <span class="capability"><span>✓</span> Issue investigation</span>
+            <span class="capability"><span>✓</span> Label discovery</span>
+            <span class="capability"><span>✓</span> Injection defence</span>
+          </div>
+        </section>
+      </div>
+
+      <div id="error" class="error-banner hidden" role="alert"><span id="errtext"></span></div>
+      <div id="activity" class="activity hidden" role="status">
+        <span class="activity-pulse" aria-hidden="true"></span>
+        Planning the next action, calling typed tools, and checking the result…
+      </div>
+
+      <div class="composer-wrap">
+        <form id="form" class="composer">
+          <label class="sr-only" for="q">Ask about the repository's issues</label>
+          <textarea id="q" maxlength="500" rows="2" placeholder="Ask about priorities, blockers, labels, milestones, or a specific issue…"></textarea>
+          <div class="composer-foot">
+            <span class="composer-meta">
+              <span>Enter to run · Shift+Enter for a new line</span>
+              <span class="char-count" id="char-count">0 / 500</span>
+            </span>
+            <button class="ask-button" id="go" type="submit">
+              <span id="go-label">Run agent</span>
+              <svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M5 12h14m-5-5 5 5-5 5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+          </div>
+        </form>
+      </div>
+    </main>
+
+    <aside class="panel inspector" aria-label="Agent execution inspector">
+      <header class="inspector-head">
+        <div>
+          <h2 class="panel-title">Execution inspector</h2>
+          <p class="panel-subtitle">Latest turn, fully traceable.</p>
+        </div>
+        <span class="chip" id="inspector-state">idle</span>
+      </header>
+
+      <div class="inspector-empty" id="inspector-empty">
+        <div class="empty-orbit" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.64 5.64l2.12 2.12m8.48 8.48 2.12 2.12m0-12.72-2.12 2.12m-8.48 8.48-2.12 2.12" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/><circle cx="12" cy="12" r="3.2" stroke="currentColor" stroke-width="1.6"/></svg>
+        </div>
+        <h3>Nothing hidden behind the answer</h3>
+        <p>Run a question to inspect the plan, typed tool calls, guardrail decisions, and memory policy.</p>
+      </div>
+
+      <div id="inspector-content" class="hidden">
+        <div class="tablist" role="tablist" aria-label="Execution details">
+          <button class="tab active" type="button" role="tab" aria-selected="true" data-tab="plan">Plan <span class="tab-count" id="plan-count">0</span></button>
+          <button class="tab" type="button" role="tab" aria-selected="false" data-tab="tools">Tools <span class="tab-count" id="tools-count">0</span></button>
+          <button class="tab" type="button" role="tab" aria-selected="false" data-tab="safety">Safety <span class="tab-count" id="safety-count">0</span></button>
+          <button class="tab" type="button" role="tab" aria-selected="false" data-tab="memory">Memory <span class="tab-count" id="memory-count">0</span></button>
+        </div>
+
+        <section class="tab-panel active" role="tabpanel" data-panel="plan">
+          <ol class="trace-list timeline" id="plan"></ol>
+          <div class="hint">The planner chooses one action at a time with prior observations in view.</div>
+        </section>
+
+        <section class="tab-panel" role="tabpanel" data-panel="tools">
+          <ul class="trace-list" id="tools"></ul>
+          <div class="hint">Every call uses one of five read-only tools exposed by the custom MCP server.</div>
+        </section>
+
+        <section class="tab-panel" role="tabpanel" data-panel="safety">
+          <div id="guardsec">
+            <ul class="trace-list" id="guards"></ul>
+            <div class="hint">Flagged issue text remains visible for analysis but cannot become an instruction.</div>
+          </div>
+        </section>
+
+        <section class="tab-panel" role="tabpanel" data-panel="memory">
+          <div id="memsec">
+            <ul class="trace-list" id="mem"></ul>
+            <div class="hint">Only durable, reusable, user-asserted facts can enter long-term memory.</div>
+          </div>
+        </section>
+
+        <div class="budget-card">
+          <div class="budget-top">
+            <span class="budget-title">Execution budget</span>
+            <span class="chip green">bounded</span>
+          </div>
+          <div class="budget" id="budget">Waiting for a run.</div>
+          <div class="budget-bar" aria-hidden="true"><div class="budget-fill" id="budget-fill"></div></div>
+        </div>
+      </div>
+    </aside>
+  </div>
+
+  <footer class="page-foot">
+    <span class="foot-stack"><span>Read-only MCP tools</span><span class="foot-dot"></span><span>Browser-isolated sessions</span><span class="foot-dot"></span><span>No credentials required for demo mode</span></span>
+    <span id="footer-mode">Fixture data · deterministic model</span>
+  </footer>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = value => String(value == null ? '' : value).replace(/[&<>"']/g, character => ({
+  '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+})[character]);
+
+let completedRuns = 0;
+let pendingTurn = null;
+
+function list(element, items, render, emptyMessage) {
+  element.innerHTML = '';
+  if (!items.length) {
+    const empty = document.createElement('li');
+    empty.className = 'empty-trace';
+    empty.textContent = emptyMessage;
+    element.appendChild(empty);
+    return;
+  }
+  items.forEach(item => {
+    const row = document.createElement('li');
+    row.innerHTML = render(item);
+    element.appendChild(row);
+  });
+}
+
+function setChip(element, text, tone) {
+  element.textContent = text;
+  element.className = 'chip' + (tone ? ' ' + tone : '');
+}
+
+function appendUserTurn(question) {
+  $('welcome').classList.add('hidden');
+  const turn = document.createElement('article');
+  turn.className = 'turn user';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'turn-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.textContent = 'YOU';
+
+  const body = document.createElement('div');
+  const label = document.createElement('p');
+  label.className = 'turn-label';
+  label.textContent = 'Your question';
+  const copy = document.createElement('p');
+  copy.className = 'turn-copy';
+  copy.textContent = question;
+  body.append(label, copy);
+  turn.append(avatar, body);
+  $('conversation').appendChild(turn);
+}
+
+function appendPendingTurn() {
+  const turn = document.createElement('article');
+  turn.className = 'turn assistant';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'turn-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.textContent = 'AI';
+
+  const body = document.createElement('div');
+  body.className = 'turn-body';
+  const label = document.createElement('p');
+  label.className = 'turn-label';
+  label.textContent = 'MCP Agent';
+  const thinking = document.createElement('div');
+  thinking.className = 'thinking';
+  thinking.innerHTML = '<span class="thinking-dots" aria-hidden="true"><i></i><i></i><i></i></span><span>Inspecting the repository…</span>';
+  body.append(label, thinking);
+  turn.append(avatar, body);
+  $('conversation').appendChild(turn);
+  pendingTurn = turn;
+  turn.scrollIntoView({behavior:'smooth',block:'end'});
+}
+
+function appendAssistantTurn(answer, citations) {
+  if (pendingTurn) pendingTurn.remove();
+  pendingTurn = null;
+
+  const turn = document.createElement('article');
+  turn.className = 'turn assistant';
+
+  const avatar = document.createElement('div');
+  avatar.className = 'turn-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.textContent = 'AI';
+
+  const body = document.createElement('div');
+  body.className = 'turn-body';
+  const label = document.createElement('p');
+  label.className = 'turn-label';
+  label.textContent = 'MCP Agent';
+  const copy = document.createElement('p');
+  copy.className = 'turn-copy';
+  copy.textContent = answer || '(no answer)';
+  body.append(label, copy);
+
+  if (citations.length) {
+    const row = document.createElement('div');
+    row.className = 'citation-row';
+    row.setAttribute('aria-label', 'Answer citations');
+    citations.forEach(citation => {
+      const item = document.createElement('span');
+      item.className = 'citation';
+      const number = document.createElement('b');
+      number.textContent = '#' + citation.issue;
+      const claim = document.createElement('span');
+      claim.textContent = citation.claim;
+      item.append(number, claim);
+      row.appendChild(item);
+    });
+    body.appendChild(row);
+  }
+
+  turn.append(avatar, body);
+  $('conversation').appendChild(turn);
+  turn.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function appendErrorTurn(message) {
+  if (pendingTurn) pendingTurn.remove();
+  pendingTurn = null;
+
+  const turn = document.createElement('article');
+  turn.className = 'turn error-turn';
+  const avatar = document.createElement('div');
+  avatar.className = 'turn-avatar';
+  avatar.setAttribute('aria-hidden', 'true');
+  avatar.textContent = '!';
+  const body = document.createElement('div');
+  body.className = 'turn-body';
+  const label = document.createElement('p');
+  label.className = 'turn-label';
+  label.textContent = 'Run failed';
+  const copy = document.createElement('p');
+  copy.className = 'turn-copy';
+  copy.textContent = message;
+  body.append(label, copy);
+  turn.append(avatar, body);
+  $('conversation').appendChild(turn);
+}
+
+function showInspector(data) {
+  $('inspector-empty').classList.add('hidden');
+  $('inspector-content').classList.remove('hidden');
+  setChip($('inspector-state'), 'complete', 'green');
+
+  const plan = data.plan || [];
+  const tools = data.tool_calls || [];
+  const guards = data.guardrail_events || [];
+  const recalled = data.recalled_facts || [];
+  const memoryEvents = data.memory_events || [];
+  const memory = [
+    ...recalled.map(fact => ({
+      html:'<span class="tag t-ok">recalled</span><span class="mono">' +
+        esc(fact.key) + ' = ' + esc(fact.value) + '</span>' +
+        (fact.source_quote ? '<div class="why">You said: “' + esc(fact.source_quote) + '”</div>' : '')
+    })),
+    ...memoryEvents.map(event => ({
+      html:'<span class="tag ' + (event.action === 'rejected' ? 't-bad' : 't-ok') + '">' +
+        esc(event.action) + '</span><span class="mono">' + esc(event.key) + ' = ' +
+        esc(event.value) + '</span><div class="why">' + esc(event.reason) + '</div>'
+    }))
+  ];
+
+  $('plan-count').textContent = plan.length;
+  $('tools-count').textContent = tools.length;
+  $('safety-count').textContent = guards.length;
+  $('memory-count').textContent = memory.length;
+
+  list($('plan'), plan, step => {
+    const action = step.action === 'call_tool'
+      ? '<span class="mono">' + esc(step.tool) + '(' + esc(JSON.stringify(step.args)) + ')</span>'
+      : '<span class="mono">finish</span>';
+    return action + '<div class="why">' + esc(step.why) + '</div>';
+  }, 'No planning steps were returned.');
+
+  list($('tools'), tools, tool => {
+    const state = tool.ok
+      ? '<span class="tag t-ok">success</span>'
+      : '<span class="tag t-bad">error</span>';
+    const more = tool.has_more ? '<span class="tag t-warn">more pages</span>' : '';
+    const notes = (tool.notes || []).map(note => '<div class="why">Note: ' + esc(note) + '</div>').join('');
+    const error = tool.error ? '<div class="why" style="color:var(--red)">' + esc(tool.error) + '</div>' : '';
+    return state + more + '<div class="mono">' + esc(tool.tool) + '</div>' +
+      '<div class="why">' + tool.items + ' item(s) returned</div>' + notes + error;
+  }, 'No tool was required for this turn.');
+
+  list($('guards'), guards, event => {
+    const tone = event.action === 'blocked' ? 't-bad' : 't-warn';
+    return '<span class="tag ' + tone + '">' + esc(event.detector) + '</span>' +
+      '<span class="tag">' + esc(event.direction) + ' · ' + esc(event.action) + '</span>' +
+      '<div class="mono">' + esc(event.source) + '</div>' +
+      (event.detail ? '<div class="why">' + esc(event.detail) + '</div>' : '');
+  }, 'No guardrail event was needed for this turn.');
+
+  list($('mem'), memory, item => item.html, 'No fact was recalled, stored, or rejected in this turn.');
+
+  const budgetData = data.budget || {};
+  let budget = String(budgetData.planning_turns || 0) + ' planning turn(s) · ' +
+    String(budgetData.tool_calls || 0) + ' tool call(s)';
+  if (data.backend && data.backend.repo) {
+    budget += '\n' + data.backend.repo + ' via ' + (data.backend.issues || 'unknown');
+  }
+  if (data.terminated_because) budget += '\nStopped early: ' + data.terminated_because;
+  $('budget').textContent = budget;
+  const usage = Math.min(100, Math.max(8,
+    ((budgetData.planning_turns || 0) / 8) * 65 + ((budgetData.tool_calls || 0) / 12) * 35));
+  $('budget-fill').style.width = usage + '%';
+}
+
+function updateBackend(data) {
+  if (!data.backend) return;
+  if (data.backend.repo) {
+    $('repo-name').textContent = data.backend.repo;
+    $('repo-copy').textContent = 'Read through the ' + (data.backend.issues || 'configured') + ' issues backend.';
+  }
+  if (data.backend.issues) setChip($('issues-chip'), 'issues · ' + data.backend.issues, 'cyan');
+  if (data.backend.llm) setChip($('llm-chip'), 'llm · ' + data.backend.llm, 'violet');
+}
+
+function selectTab(name) {
+  document.querySelectorAll('[data-tab]').forEach(tab => {
+    const active = tab.dataset.tab === name;
+    tab.classList.toggle('active', active);
+    tab.setAttribute('aria-selected', String(active));
+  });
+  document.querySelectorAll('[data-panel]').forEach(panel => {
+    panel.classList.toggle('active', panel.dataset.panel === name);
+  });
+}
+
+document.querySelectorAll('[data-tab]').forEach(tab => {
+  tab.addEventListener('click', () => selectTab(tab.dataset.tab));
+});
+
+fetch('/api/health').then(response => {
+  if (!response.ok) throw new Error('Health check failed');
+  return response.json();
+}).then(health => {
+  $('health-dot').classList.add('ok');
+  $('health-state').textContent = 'Agent online';
+  $('version').textContent = 'v' + health.version;
+  setChip($('issues-chip'), 'issues · ' + health.issues_backend, 'cyan');
+  setChip($('llm-chip'), 'llm · ' + health.llm_backend, 'violet');
+  $('footer-mode').textContent =
+    health.issues_backend + ' data · ' + health.llm_backend + ' model · ' +
+    health.guardrail_mode + ' guardrails';
+}).catch(() => {
+  $('health-dot').classList.add('bad');
+  $('health-state').textContent = 'Health unavailable';
+});
+
+fetch('/api/examples').then(response => response.json()).then(data => {
+  (data.examples || []).forEach((text, index) => {
+    const button = document.createElement('button');
+    button.className = 'example-button';
+    button.type = 'button';
+    button.title = text;
+    const icon = document.createElement('span');
+    icon.className = 'example-icon';
+    icon.setAttribute('aria-hidden', 'true');
+    icon.textContent = String(index + 1).padStart(2, '0');
+    const copy = document.createElement('span');
+    copy.textContent = text.length > 78 ? text.slice(0, 78) + '…' : text;
+    button.append(icon, copy);
+    button.addEventListener('click', () => {
+      $('q').value = text;
+      $('char-count').textContent = text.length + ' / 500';
+      $('form').requestSubmit();
+    });
+    $('examples').appendChild(button);
+  });
+}).catch(() => {
+  const note = document.createElement('p');
+  note.className = 'repo-copy';
+  note.textContent = 'Example prompts are unavailable.';
+  $('examples').appendChild(note);
+});
+
+$('q').addEventListener('input', event => {
+  $('char-count').textContent = event.target.value.length + ' / 500';
+});
+$('q').addEventListener('keydown', event => {
+  if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) {
+    event.preventDefault();
+    $('form').requestSubmit();
+  }
+});
+
+$('form').addEventListener('submit', async event => {
+  event.preventDefault();
+  const question = $('q').value.trim();
+  if (!question || $('go').disabled) return;
+
+  appendUserTurn(question);
+  appendPendingTurn();
+  $('q').value = '';
+  $('char-count').textContent = '0 / 500';
+  $('go').disabled = true;
+  $('go-label').textContent = 'Running';
+  $('error').classList.add('hidden');
+  $('activity').classList.remove('hidden');
+  setChip($('inspector-state'), 'running', 'cyan');
+  $('run-count').textContent = 'running';
+
+  try {
+    const response = await fetch('/api/ask', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({question:question})
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      const message = data.error || 'HTTP ' + response.status;
+      $('errtext').textContent = message;
+      $('error').classList.remove('hidden');
+      appendErrorTurn(message);
+      setChip($('inspector-state'), 'failed', 'red');
+      return;
+    }
+
+    appendAssistantTurn(data.answer, data.citations || []);
+    showInspector(data);
+    updateBackend(data);
+    completedRuns += 1;
+    $('run-count').textContent = completedRuns + (completedRuns === 1 ? ' run' : ' runs');
+  } catch (error) {
+    const message = String(error);
+    $('errtext').textContent = message;
+    $('error').classList.remove('hidden');
+    appendErrorTurn(message);
+    setChip($('inspector-state'), 'failed', 'red');
+  } finally {
+    $('activity').classList.add('hidden');
+    $('go').disabled = false;
+    $('go-label').textContent = 'Run agent';
+    if ($('run-count').textContent === 'running') $('run-count').textContent = 'ready';
+  }
+});
+</script>
+</body>
+</html>

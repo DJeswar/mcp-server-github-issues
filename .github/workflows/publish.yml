@@ -1,0 +1,110 @@
+# Secretless tagged release: verify/build, publish to PyPI with OIDC, then publish server.json
+# to the MCP Registry with GitHub OIDC. Configure the `pypi` trusted publisher first; see
+# docs/publishing.md. No long-lived API token belongs in repository secrets.
+
+name: publish
+
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  verify-build:
+    name: verify and build distributions
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip build twine
+          pip install -r requirements.lock.txt
+
+      - name: Tests
+        run: python -m pytest -q
+
+      - name: Evals
+        run: python -m evals.runner
+
+      - name: Verify version and ownership metadata
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          PY=$(python -c "import tomllib,pathlib; print(tomllib.loads(pathlib.Path('pyproject.toml').read_text())['project']['version'])")
+          SJ=$(python -c "import json,pathlib; print(json.loads(pathlib.Path('server.json').read_text())['version'])")
+          SJP=$(python -c "import json,pathlib; print(json.loads(pathlib.Path('server.json').read_text())['packages'][0]['version'])")
+          NAME=$(python -c "import json,pathlib; print(json.loads(pathlib.Path('server.json').read_text())['name'])")
+          echo "tag=$TAG pyproject=$PY server.json=$SJ server.json/package=$SJP"
+          test "$TAG" = "$PY" && test "$TAG" = "$SJ" && test "$TAG" = "$SJP" \
+            || { echo "::error::version mismatch — see docs/publishing.md"; exit 1; }
+          grep -q "mcp-name: $NAME" README.md \
+            || { echo "::error::README.md is missing 'mcp-name: $NAME'"; exit 1; }
+
+      - name: Build
+        run: python -m build
+
+      - name: Check metadata
+        run: python -m twine check dist/*
+
+      - name: Store distributions
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-pypi:
+    name: publish to PyPI
+    needs: verify-build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/mcp-server-github-issues
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Retrieve distributions
+        uses: actions/download-artifact@v4
+        with:
+          name: python-package-distributions
+          path: dist/
+
+      - name: Publish with PyPI Trusted Publishing
+        uses: pypa/gh-action-pypi-publish@release/v1
+
+  publish-registry:
+    name: publish to MCP Registry
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    environment: mcp-registry
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          persist-credentials: false
+
+      - name: Install mcp-publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_linux_amd64.tar.gz" \
+            | tar xz mcp-publisher
+          ./mcp-publisher --help
+
+      - name: Validate metadata
+        run: ./mcp-publisher validate server.json
+
+      - name: Authenticate and publish
+        run: |
+          ./mcp-publisher login github-oidc
+          ./mcp-publisher publish server.json

@@ -1,0 +1,62 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.DJeswar/github-issues",
+  "title": "GitHub Issues (read-only)",
+  "description": "Read-only access to one GitHub repository's issues: list and search issues, fetch full detail with comments, and enumerate labels and milestones. Ships a fixture backend so it runs with no credentials.",
+  "version": "0.1.0",
+  "repository": {
+    "url": "https://github.com/DJeswar/mcp-server-github-issues",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "mcp-server-github-issues",
+      "version": "0.1.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "ISSUES_BACKEND",
+          "description": "'fixture' (default) reads a bundled sample corpus and needs no credentials. 'github' reads the live GitHub REST API.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "fixture"
+        },
+        {
+          "name": "GITHUB_REPO",
+          "description": "Target repository as 'owner/name'. Required when ISSUES_BACKEND=github.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string"
+        },
+        {
+          "name": "GITHUB_TOKEN",
+          "description": "Optional fine-grained personal access token, read-only on Issues. Unauthenticated public-repo reads work at 60 requests/hour; a token raises that to 5000.",
+          "isRequired": false,
+          "isSecret": true,
+          "format": "string"
+        },
+        {
+          "name": "SSL_TRUST_STORE",
+          "description": "'certifi' (default) or 'system'. Use 'system' behind a TLS-inspecting corporate proxy, whose internal CA certifi does not carry.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "certifi"
+        },
+        {
+          "name": "FIXTURE_NOW",
+          "description": "Reference 'now' for the fixture backend, so time-relative fields are reproducible.",
+          "isRequired": false,
+          "isSecret": false,
+          "format": "string",
+          "default": "2026-08-01T00:00:00Z"
+        }
+      ]
+    }
+  ]
+}

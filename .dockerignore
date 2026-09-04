@@ -1,0 +1,25 @@
+# Keep the build context small and secrets out of the image.
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.pytest_tmp/
+.git/
+.github/
+dist/
+build/
+*.egg-info/
+
+# never let a real .env into an image layer -- layers are recoverable even after a later delete
+.env
+.env.local
+*.sqlite3
+*.db
+
+evals/
+tests/
+docs/
+scripts/
+mcp-publisher
+mcp-publisher.exe
+*.tar.gz

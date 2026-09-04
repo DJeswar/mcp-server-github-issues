@@ -1,0 +1,19 @@
+# Render Blueprint: connect the GitHub repository and Render builds this Dockerfile.
+# No credentials are committed. Add optional live-provider keys in the Render dashboard.
+services:
+  - type: web
+    name: live-data-mcp-agent
+    runtime: docker
+    plan: free
+    healthCheckPath: /api/health
+    envVars:
+      - key: ISSUES_BACKEND
+        value: fixture
+      - key: LLM_BACKEND
+        value: stub
+      - key: GUARDRAIL_MODE
+        value: enforce
+      - key: MEMORY_DB
+        value: ":memory:"
+      - key: SESSION_COOKIE_SECURE
+        value: "true"

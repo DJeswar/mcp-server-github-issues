@@ -1,0 +1,8 @@
+{
+  "full_name": "example/issues-demo",
+  "name": "issues-demo",
+  "owner": { "login": "example" },
+  "description": "Synthetic issue corpus for the live-data MCP agent. Not a real repository.",
+  "default_branch": "main",
+  "html_url": "https://github.com/example/issues-demo"
+}

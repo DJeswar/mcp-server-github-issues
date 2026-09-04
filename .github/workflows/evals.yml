@@ -1,0 +1,139 @@
+# Eval gate. Runs on every pull request, posts the per-category pass rate as a PR comment, and
+# fails if the injection-defence category drops below its committed baseline.
+#
+# ============================================================================================
+# CREDENTIALS: NONE REQUIRED. Nothing for you to configure.
+# ============================================================================================
+# This workflow needs no secrets at all -- no GITHUB_TOKEN of your own, no GROQ_API_KEY, no
+# PyPI token. That is a direct consequence of the design: the eval suite runs against the
+# committed JSON fixtures (ISSUES_BACKEND=fixture) and the scripted model (LLM_BACKEND=stub),
+# both offline and deterministic.
+#
+# `secrets.GITHUB_TOKEN` used below is NOT something you create -- GitHub injects it into every
+# workflow run automatically. It is only used to post the PR comment.
+#
+# WHAT YOU DO NEED (on the machine with your accounts):
+#   1. Create the GitHub repository and push this project to it.
+#   2. Nothing else. The workflow runs on the next pull request.
+#
+# Uses GitHub's free Actions minutes on the standard ubuntu-latest runner. No paid runners.
+
+name: evals
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pull-requests: write # only so the pass-rate comment can be posted
+
+concurrency:
+  group: evals-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          # 3.14 is what this project was built and verified on. If a future runner image drops
+          # it, pin to 3.13 -- nothing here depends on 3.14 specifically.
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          # the lockfile reproduces the exact verified set; requirements.txt would re-resolve
+          pip install -r requirements.lock.txt
+
+      - name: Run tests
+        run: python -m pytest -q
+
+  evals:
+    name: eval suite
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: pip
+
+      - name: Install
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.lock.txt
+
+      - name: Run evals
+        id: evals
+        # Deliberately no `continue-on-error`: a failing case should fail the check. The step
+        # still writes the report first, so the PR comment appears even on failure.
+        run: |
+          set +e
+          python -m evals.runner --out eval-report.md
+          echo "exit_code=$?" >> "$GITHUB_OUTPUT"
+          set -e
+          cat eval-report.md
+
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: eval-report.md
+
+      - name: Comment pass rates on the PR
+        if: always() && github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          # injected by GitHub -- you do not create this
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            let report = 'The eval report was not produced.';
+            try { report = fs.readFileSync('eval-report.md', 'utf8'); } catch (e) {}
+
+            const marker = '<!-- eval-pass-rates -->';
+            const body = `${marker}\n## Eval pass rates\n\n${report}\n\n` +
+              `<sub>Offline suite: fixture backend + scripted model, no credentials. ` +
+              `The \`injection\` category is gated against \`evals/baseline.json\`.</sub>`;
+
+            // update the existing comment instead of adding a new one on every push
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body && c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
+
+      - name: Fail if the eval suite regressed
+        if: steps.evals.outputs.exit_code != '0'
+        run: |
+          echo "::error::Eval suite failed. See the report above; the injection category is"
+          echo "::error::gated against evals/baseline.json."
+          exit 1

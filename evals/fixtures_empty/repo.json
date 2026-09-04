@@ -1,0 +1,8 @@
+{
+  "full_name": "example/empty-repo",
+  "name": "empty-repo",
+  "owner": { "login": "example" },
+  "description": "An empty repository. Edge-case corpus for the eval suite.",
+  "default_branch": "main",
+  "html_url": "https://github.com/example/empty-repo"
+}

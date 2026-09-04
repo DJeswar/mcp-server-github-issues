@@ -1,0 +1,73 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+# ==============================================================================================
+# PACKAGING (Phase 6) — what gets published to PyPI and listed in the MCP Registry.
+#
+# Only the `server` package ships. The `agent` package is the demo that consumes the server, and
+# `evals` is the test suite; neither belongs in a dependency someone installs to get an MCP server.
+#
+# >>> YOU MUST EDIT BEFORE PUBLISHING <<<
+#   1. `name` below — check it is free: https://pypi.org/project/mcp-server-github-issues/
+#      If taken, pick another and update `identifier` in server.json to match.
+#   2. `authors` — your name and email.
+#   3. `urls` — replace DJeswar.
+#   Or just run:  python scripts/set_identity.py --github-user <you> --name "..." --email "..."
+# ==============================================================================================
+[project]
+name = "mcp-server-github-issues"
+version = "0.1.0"
+description = "Read-only MCP server exposing a GitHub repository's issues as agent tools"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MIT"
+keywords = ["mcp", "model-context-protocol", "github", "issues", "agent", "tools"]
+authors = [{ name = "DJeswar", email = "eswarabd33@gmail.com" }]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Software Development :: Libraries",
+]
+
+# Runtime deps for the SERVER only -- not langgraph, not the eval tooling.
+dependencies = [
+    "mcp>=2.1,<3",
+    "httpx>=0.27",
+    "pydantic>=2.9,<3",
+    "python-dotenv>=1.0",
+    "truststore>=0.10",
+]
+
+[project.urls]
+Homepage = "https://github.com/DJeswar/mcp-server-github-issues"
+Repository = "https://github.com/DJeswar/mcp-server-github-issues"
+Issues = "https://github.com/DJeswar/mcp-server-github-issues/issues"
+
+# This is how an MCP client launches the server after `pip install` / `uvx`.
+[project.scripts]
+mcp-server-github-issues = "server.main:main"
+
+[tool.setuptools]
+packages = ["server", "server.providers", "server.fixtures"]
+
+[tool.setuptools.package-data]
+# ship the fixture corpus: it is what makes the published server runnable with zero credentials,
+# which is the difference between "installs" and "someone can actually try it"
+server = ["fixtures/*.json", "fixtures/*.md"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+pythonpath = ["."]
+testpaths = ["tests"]
+
+# No `tmp_path`/`tmp_path_factory` anywhere in this suite -- use the `tmp_dir` fixture in
+# tests/conftest.py instead. pytest's temp machinery is unusable on this machine in both
+# configurations: the default keeps a `pytest-current` junction whose cleanup raises
+# PermissionError [WinError 5], and a fixed --basetemp gets wiped at session start, which fails
+# the same way because the IDE's file watcher holds the directory. Never requesting the factory
+# means neither path runs, and it keeps the config portable (no absolute paths).
+addopts = "-q"

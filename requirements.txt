@@ -1,0 +1,26 @@
+# Complete application dependency set. Groq and Gemini use their documented HTTPS APIs through
+# httpx, so no provider SDK (and no extra version drift) is needed.
+
+# mcp 2.x has a different server API from 1.x. Floor is pinned to 2.1 on purpose:
+# a >=1.2 floor lets another machine resolve to 1.x and silently break server/main.py.
+mcp>=2.1,<3
+httpx>=0.27
+pydantic>=2.9,<3
+python-dotenv>=1.0
+# Needed for SSL_TRUST_STORE=system (OS certificate store) behind a TLS-inspecting corporate
+# proxy. It arrives transitively via mcp, but this code imports it directly -- declare it.
+truststore>=0.10
+
+# agent framework (Phase 4). langgraph is 1.x and the 0.x API differs -- the floor is pinned
+# to 1.2 so a second machine cannot resolve to 0.x and silently break graph construction.
+langgraph>=1.2,<2
+langgraph-checkpoint-sqlite>=3.1,<4
+
+# eval suite (Phase 5). Arrives transitively via langchain, but evals/runner.py imports it
+# directly, so it is declared.
+PyYAML>=6.0
+
+# test tooling
+pytest>=8.0
+pytest-asyncio>=0.24
+respx>=0.21
