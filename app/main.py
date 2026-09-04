@@ -148,6 +148,15 @@ async def homepage(request: Request) -> HTMLResponse:
 
 async def health(request: Request) -> JSONResponse:
     settings = _state.get("settings")
+    live_backend_selected = getattr(settings, "llm_backend", None) in {
+        "groq",
+        "gemini",
+        "auto",
+    }
+    live_credentials_present = bool(
+        getattr(settings, "groq_api_key", None)
+        or getattr(settings, "gemini_api_key", None)
+    )
     return JSONResponse(
         {
             "status": "ok",
@@ -155,10 +164,7 @@ async def health(request: Request) -> JSONResponse:
             "llm_backend": getattr(settings, "llm_backend", None),
             "guardrail_mode": getattr(settings, "guardrail_mode", None),
             "issues_backend": os.environ.get("ISSUES_BACKEND", "fixture"),
-            "live_model_configured": bool(
-                getattr(settings, "groq_api_key", None)
-                or getattr(settings, "gemini_api_key", None)
-            ),
+            "live_model_configured": live_backend_selected and live_credentials_present,
             "groq_model": getattr(settings, "groq_model", None),
             "gemini_model": getattr(settings, "gemini_model", None),
         }

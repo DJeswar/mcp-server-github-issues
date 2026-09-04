@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -65,8 +66,11 @@ def test_invalid_identity_values_are_rejected(kind, value):
 
 def test_license_is_real_and_identity_driven():
     text = (ROOT / "LICENSE").read_text(encoding="utf-8")
+    project = tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    author_name = project["project"]["authors"][0]["name"]
     assert text.startswith("MIT License")
-    assert PLACEHOLDERS["name"] in text
+    assert author_name in text
+    assert PLACEHOLDERS["name"] not in text
     assert re.search(r"Permission is hereby granted", text)
 
 
