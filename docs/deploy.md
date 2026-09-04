@@ -50,7 +50,7 @@ In **Render → Service → Environment**, set only the integrations you want:
 | variable | `LLM_BACKEND` | `groq`, `gemini`, or `auto` |
 | secret | `GROQ_API_KEY` | required for Groq or optional half of `auto` |
 | secret | `GEMINI_API_KEY` | required for Gemini or optional half of `auto` |
-| variable | `GROQ_MODEL` | optional; default `openai/gpt-oss-20b` |
+| variable | `GROQ_MODEL` | optional; default `llama-3.3-70b-versatile` |
 | variable | `GEMINI_MODEL` | optional; default `gemini-2.5-flash` |
 
 `auto` uses Groq first and falls back to Gemini only for transient errors such as rate limiting or

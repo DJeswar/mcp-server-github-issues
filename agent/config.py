@@ -75,7 +75,7 @@ class AgentSettings:
     #: Live-model credentials are deliberately excluded from the dataclass repr.
     groq_api_key: str | None = field(default=None, repr=False)
     gemini_api_key: str | None = field(default=None, repr=False)
-    groq_model: str = "openai/gpt-oss-20b"
+    groq_model: str = "llama-3.3-70b-versatile"
     gemini_model: str = "gemini-2.5-flash"
     model_timeout: float = 30.0
     model_max_output_tokens: int = 4096
@@ -151,7 +151,7 @@ def load_agent_settings(env: dict[str, str] | None = None) -> AgentSettings:
         guardrail_mode=guardrail_mode,  # type: ignore[arg-type]
         groq_api_key=groq_key,
         gemini_api_key=gemini_key,
-        groq_model=(env.get("GROQ_MODEL") or "").strip() or "openai/gpt-oss-20b",
+        groq_model=(env.get("GROQ_MODEL") or "").strip() or "llama-3.3-70b-versatile",
         gemini_model=(env.get("GEMINI_MODEL") or "").strip() or "gemini-2.5-flash",
         model_timeout=_float(env, "MODEL_TIMEOUT_SECONDS", 30.0),
         model_max_output_tokens=_int(env, "MODEL_MAX_OUTPUT_TOKENS", 4096, minimum=64),
