@@ -48,6 +48,37 @@ class TestGroqModel:
         assert response.text == '{"action":"finish"}'
         assert response.usage["prompt_tokens"] == 9
 
+    async def test_tool_choice_conflict_falls_back_to_a_compatible_model(self):
+        seen = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content)
+            seen.append(payload["model"])
+            if len(seen) == 1:
+                return httpx.Response(
+                    400,
+                    json={
+                        "error": {
+                            "message": "Tool choice is none, but model called a tool"
+                        }
+                    },
+                )
+            return httpx.Response(
+                200,
+                json={
+                    "model": payload["model"],
+                    "choices": [{"message": {"content": '{"action":"finish"}'}}],
+                    "usage": {"prompt_tokens": 7, "completion_tokens": 3},
+                },
+            )
+
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as client:
+            response = await GroqModel("groq-secret", client=client).complete(MESSAGES)
+
+        assert seen == ["openai/gpt-oss-20b", "llama-3.3-70b-versatile"]
+        assert response.model == "llama-3.3-70b-versatile"
+        assert response.usage["fallback"]["from"] == "openai/gpt-oss-20b"
+
     async def test_auth_error_is_nonretryable_and_does_not_leak_key(self):
         def handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(

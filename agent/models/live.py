@@ -21,6 +21,7 @@ from .base import ChatModel, Message, ModelOutputError, ModelResponse, ToolSpec,
 
 GROQ_API_BASE = "https://api.groq.com/openai/v1"
 GEMINI_API_BASE = "https://generativelanguage.googleapis.com/v1beta"
+GROQ_COMPATIBILITY_MODEL = "llama-3.3-70b-versatile"
 
 
 class ModelProviderError(Exception):
@@ -185,6 +186,7 @@ class GroqModel(_HttpModel):
         api_key: str,
         *,
         model: str = "openai/gpt-oss-20b",
+        fallback_model: str = GROQ_COMPATIBILITY_MODEL,
         timeout: float = 30.0,
         max_output_tokens: int = 4096,
         ssl_trust: str = "certifi",
@@ -198,10 +200,17 @@ class GroqModel(_HttpModel):
         )
         self._api_key = api_key
         self._model = model
+        self._fallback_model = fallback_model
         self._max_output_tokens = max_output_tokens
 
-    async def complete(
-        self, messages: list[Message], tools: list[ToolSpec] | None = None
+    def _is_tool_choice_error(self, exc: ModelProviderError) -> bool:
+        detail = str(exc).lower()
+        return exc.status_code == 400 and (
+            "tool choice is none" in detail or "called a tool" in detail
+        )
+
+    async def _complete_with_model(
+        self, messages: list[Message], model: str
     ) -> ModelResponse:
         data = await self._post(
             f"{GROQ_API_BASE}/chat/completions",
@@ -210,7 +219,7 @@ class GroqModel(_HttpModel):
                 "Content-Type": "application/json",
             },
             payload={
-                "model": self._model,
+                "model": model,
                 "messages": [
                     {"role": message.role, "content": message.content}
                     for message in messages
@@ -224,11 +233,24 @@ class GroqModel(_HttpModel):
         message = choices[0].get("message", {}) if choices else {}
         text = self._validated_text(message.get("content"))
         usage = data.get("usage") if isinstance(data.get("usage"), dict) else {}
-        return ModelResponse(
-            text=text,
-            model=str(data.get("model") or self._model),
-            usage=usage,
-        )
+        return ModelResponse(text=text, model=str(data.get("model") or model), usage=usage)
+
+    async def complete(
+        self, messages: list[Message], tools: list[ToolSpec] | None = None
+    ) -> ModelResponse:
+        try:
+            return await self._complete_with_model(messages, self._model)
+        except ModelProviderError as exc:
+            if self._fallback_model and self._fallback_model != self._model and self._is_tool_choice_error(exc):
+                response = await self._complete_with_model(messages, self._fallback_model)
+                usage = dict(response.usage)
+                usage["fallback"] = {
+                    "from": self._model,
+                    "to": self._fallback_model,
+                    "reason": "groq_tool_choice_conflict",
+                }
+                return response.model_copy(update={"usage": usage})
+            raise
 
 
 class GeminiModel(_HttpModel):
